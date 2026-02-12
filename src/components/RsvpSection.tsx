@@ -3,21 +3,54 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { z } from "zod";
+
+const rsvpSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, "Por favor, insira seu nome.")
+    .max(100, "O nome deve ter no máximo 100 caracteres.")
+    .regex(/^[a-zA-ZÀ-ÿ\s'-]+$/, "O nome contém caracteres inválidos."),
+  guests: z
+    .number({ invalid_type_error: "Insira um número válido." })
+    .int("O número deve ser inteiro.")
+    .min(0, "O número não pode ser negativo.")
+    .max(10, "Máximo de 10 acompanhantes."),
+});
 
 const RsvpSection = () => {
   const [name, setName] = useState("");
   const [guests, setGuests] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [errors, setErrors] = useState<{ name?: string; guests?: string }>({});
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) {
-      toast.error("Por favor, insira seu nome.");
+    setErrors({});
+
+    const result = rsvpSchema.safeParse({
+      name,
+      guests: guests === "" ? 0 : Number(guests),
+    });
+
+    if (!result.success) {
+      const fieldErrors: { name?: string; guests?: string } = {};
+      result.error.errors.forEach((err) => {
+        const field = err.path[0] as string;
+        fieldErrors[field as "name" | "guests"] = err.message;
+      });
+      setErrors(fieldErrors);
+      const firstError = result.error.errors[0]?.message;
+      if (firstError) toast.error(firstError);
       return;
     }
+
     setSubmitted(true);
     toast.success("Confirmação recebida! Obrigado!");
   };
+
+  const sanitizedName = name.replace(/[<>&"'/]/g, "");
 
   return (
     <section className="py-24 px-6 bg-background">
@@ -55,7 +88,7 @@ const RsvpSection = () => {
             animate={{ opacity: 1, scale: 1 }}
             className="bg-secondary rounded-lg p-10"
           >
-            <p className="font-display text-2xl text-foreground mb-2">Obrigado, {name}!</p>
+            <p className="font-display text-2xl text-foreground mb-2">Obrigado, {sanitizedName}!</p>
             <p className="font-body text-muted-foreground">Sua confirmação foi registrada. Nos vemos lá! 💚</p>
           </motion.div>
         ) : (
@@ -67,20 +100,32 @@ const RsvpSection = () => {
             onSubmit={handleSubmit}
             className="space-y-4"
           >
-            <Input
-              placeholder="Seu nome completo"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="bg-card border-border font-body text-center h-12"
-            />
-            <Input
-              placeholder="Número de acompanhantes"
-              type="number"
-              min="0"
-              value={guests}
-              onChange={(e) => setGuests(e.target.value)}
-              className="bg-card border-border font-body text-center h-12"
-            />
+            <div>
+              <Input
+                placeholder="Seu nome completo"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                maxLength={100}
+                className="bg-card border-border font-body text-center h-12"
+              />
+              {errors.name && (
+                <p className="text-destructive text-sm mt-1 font-body">{errors.name}</p>
+              )}
+            </div>
+            <div>
+              <Input
+                placeholder="Número de acompanhantes"
+                type="number"
+                min="0"
+                max="10"
+                value={guests}
+                onChange={(e) => setGuests(e.target.value)}
+                className="bg-card border-border font-body text-center h-12"
+              />
+              {errors.guests && (
+                <p className="text-destructive text-sm mt-1 font-body">{errors.guests}</p>
+              )}
+            </div>
             <Button
               type="submit"
               className="w-full h-12 font-body tracking-widest uppercase text-sm bg-primary text-primary-foreground hover:bg-primary/90"
